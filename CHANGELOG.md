@@ -13,6 +13,9 @@ PATCH release of SURFMAP - no breaking changes
 - `setup.py` now reads the package version directly from `surfmap.__VERSION__` instead of hardcoding it, avoiding version drift
 - `freesasa` dependency is now resolved per Python version: `2.1.0` for `python_version < '3.12'`, `2.2.1` for `python_version >= '3.12'` (tested up to Python 3.14)
 
+### Fixed
+- `parsePDBParticule()` in `Structure.py` no longer truncates shell particle serial numbers above 9999, which could make distinct shell points collide on the same identifier and overwrite each other's coordinates, leading to incorrect closest-atom assignments during map generation
+
 
 ## [2.2.0] - 2024-05-14
 

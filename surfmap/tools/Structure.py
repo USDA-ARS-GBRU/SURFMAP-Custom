@@ -237,6 +237,18 @@ def parsePDBMultiChains(infile, charge = 1, chargeFromInfile = False, bfactor = 
 
 
 def parsePDBParticule(filin, charge = 1, infile = False) :
+    """Parses a PDB file and returns a dictionary containing the coordinates of each atom. 
+    The dictionary has the following structure:
+    dPDB = {
+        "partlist": [numpart1, numpart2, ...],
+        numpart1: {"x": x1, "y": y1, "z": z1, "charge": charge1},
+        numpart2: {"x": x2, "y": y2, "z": z2, "charge": charge2},
+        ...    }
+    where numpart is the atom number in the PDB file, and x, y, z are the coordinates of the atom. 
+    If infile is True, the charge is read from the PDB file.
+
+    This parser expects the specific multival_csv_to_pdb.py-generated format (4-char "ATOM" + 7-char serial).
+    """
 
     # lecture du fichier PDB 
     f = open(filin, "r")
@@ -250,7 +262,7 @@ def parsePDBParticule(filin, charge = 1, infile = False) :
     # parcoure le PDB   
     for line in lines :
         if (line[0:4] == "ATOM") or ((line[0:6] == "HETATM") and ( (line[17:20].strip() == "MET") or  (line[17:20].strip() == "MSE") )) :
-            numpart = line[7:11].strip()
+            numpart = line[4:11].strip()
             dPDB["partlist"].append(numpart)
             dPDB[numpart] = {}
             dPDB[numpart]["x"] = float(line[30:38])
