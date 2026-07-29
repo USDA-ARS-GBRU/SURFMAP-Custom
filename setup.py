@@ -1,4 +1,6 @@
 
+import re
+from pathlib import Path
 import setuptools
 
 
@@ -8,6 +10,22 @@ def get_license():
 
     return license
 
+def get_version():
+    init_path = Path(__file__).parent / 'surfmap' / '__init__.py'
+    match = re.search(r"^__VERSION__\s*=\s*['\"]([^'\"]+)['\"]",
+                       init_path.read_text(), re.MULTILINE)
+    if not match:
+        raise RuntimeError("Unable to find __VERSION__ in surfmap/__init__.py")
+    return match.group(1)
+
+
+install_requires = [
+    "freesasa==2.1.0; python_version < '3.12'",
+    "freesasa==2.2.1; python_version >= '3.12'",
+    "numpy>=1.21.6",
+    "pdb2pqr==3.1.0",
+    "requests==2.22.0"
+]
 
 packages = [
     'surfmap',
@@ -18,18 +36,13 @@ packages = [
 
 setuptools.setup(
     name='surfmap',
-    version='2.0.0',
+    version=get_version(),
     python_requires='>=3.7',
     license=get_license(),
     packages=packages,
     package_data={'surfmap': ['examples/*']},
     include_package_data=True,
-    install_requires=[
-        "freesasa==2.1.0",
-        "numpy>=1.21.6",
-        "pdb2pqr==3.1.0",
-        "requests==2.22.0"
-        ],
+    install_requires=install_requires,
         entry_points={
             'console_scripts': [
                 'surfmap=surfmap.bin.surfmap:main',
