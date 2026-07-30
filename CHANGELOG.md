@@ -12,10 +12,14 @@ PATCH release of SURFMAP - no breaking changes
 ### Changed
 - `setup.py` now reads the package version directly from `surfmap.__VERSION__` instead of hardcoding it, avoiding version drift
 - `freesasa` dependency is now resolved per Python version: `2.1.0` for `python_version < '3.12'`, `2.2.1` for `python_version >= '3.12'` (tested up to Python 3.14)
+- input file mounts for `--docker` runs are now mounted read-only (`:ro`) instead of the implicit read-write default, since surfmap never writes to its inputs
 
 ### Fixed
 - `parsePDBParticule()` in `Structure.py` no longer truncates shell particle serial numbers above 9999, which could make distinct shell points collide on the same identifier and overwrite each other's coordinates, leading to incorrect closest-atom assignments during map generation
-
+- `DockerCLI` (`docker.py`) no longer forces `-it`, which made `--docker` fail with "the input device is not a TTY" when run non-interactively (scripts, CI, some editor terminals); a pseudo-tty is now only requested when stdin is actually a TTY
+- `DockerCLI.run()` now returns the container's exit code, and `surfmap.py`'s `main()` propagates it via `sys.exit()`, instead of always exiting `0` regardless of failures inside the container
+- `_check_docker_install()` in `parameters.py` now actually exits when docker is not found on the system, instead of printing a warning and continuing anyway
+- input files mounted for `--docker` runs (e.g. `-pdb` and `-res`) no longer collide when they share the same basename from different host directories, by index-prefixing their container mount paths
 
 ## [2.2.0] - 2024-05-14
 
