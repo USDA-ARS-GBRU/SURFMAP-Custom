@@ -3,15 +3,19 @@ import subprocess
 import sys
 from typing import List
 
-from surfmap import SURFMAP_DOCKER_VERSION
+from surfmap import SURFMAP_DOCKER_VERSION, DOCKER_REPOSITORY
 
 
 class DockerCLI:
-    DOCKER_REPOSITORY = 'lopesi2bc/surfmap'
+    DOCKER_REPOSITORY = DOCKER_REPOSITORY
     TAG = SURFMAP_DOCKER_VERSION
 
     def __init__(self, args, input_args: List[str], output_args: str, out_dirname: str, input_dir: str='/home/surfmap/input', output_dir: str='/home/surfmap/output') -> None:
-        self.cli = ['docker', 'run', '-it', '--rm']
+        self.cli = ['docker', 'run', '--rm']
+        if sys.stdin.isatty():
+            # only request a pseudo-tty when one is actually available, otherwise
+            # docker fails with "the input device is not a TTY" (CI, scripts, pipes, ...)
+            self.cli += ['-it']
 
         self.prog = Path(sys.argv[0]).name
         self.input_args = input_args
@@ -19,7 +23,8 @@ class DockerCLI:
         self.input_dir = input_dir
         self.output_dir = output_dir
 
-        self.input_files = [ args.__getattribute__(x.replace("-", "")) for x in self.input_args]
+        self.input_files = [getattr(args, x.replace("-", "")) for x in self.input_args]
+        self.container_input_paths: List[str] = []
         self.output = out_dirname
         Path(self.output).mkdir(exist_ok=True, parents=True)
 
@@ -30,9 +35,13 @@ class DockerCLI:
 
     def _mounting_points(self):
         mnt_point = []
-        for input_file in self.input_files:
-            mnt_point += ["-v", f"{Path(input_file).resolve()}:{self.input_dir}/{Path(input_file).name}"]
-        
+        for i, input_file in enumerate(self.input_files):
+            # prefix with the index to avoid collisions when two input files
+            # (e.g. -pdb and -res) share the same basename from different dirs
+            container_path = f"{self.input_dir}/{i}_{Path(input_file).name}"
+            self.container_input_paths.append(container_path)
+            mnt_point += ["-v", f"{Path(input_file).resolve()}:{container_path}:ro"]
+
         mnt_point += ["-v", f"{Path(self.output).resolve()}:{self.output_dir}:rw"]
 
         return mnt_point
@@ -47,8 +56,8 @@ class DockerCLI:
             cmd_arguments.append(argv)
 
         # edit arguments relative to input(s)
-        for i, input_arg in enumerate(self.input_args, start=0):
-            cmd_arguments[cmd_arguments.index(input_arg) + 1] = f"{self.input_dir}/{Path(self.input_files[i]).name}"
+        for i, input_arg in enumerate(self.input_args):
+            cmd_arguments[cmd_arguments.index(input_arg) + 1] = self.container_input_paths[i]
 
         # edit arguments relative to output
         if self.output_args in cmd_arguments:
@@ -66,4 +75,5 @@ class DockerCLI:
         print(f"\n{self.cmd()}\n")
 
     def run(self):
-        subprocess.call(self.cli)
+        """Run the docker container and return its exit code so callers can propagate it."""
+        return subprocess.call(self.cli)

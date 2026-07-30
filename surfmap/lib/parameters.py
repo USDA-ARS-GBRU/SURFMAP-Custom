@@ -324,6 +324,7 @@ class Parameters:
     def _check_docker_install(self):
         if not which("docker"):
             print(f"Error: docker has not been detected on your system. Please install it to use a pre-built image of SURFMAP.\n")
+            exit(1)
 
 
     def _check_mutually_exclusive_args(self, args):

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import sys
+
 import surfmap
 from surfmap import __COPYRIGHT_FULL__
 from surfmap.lib.core import surfmap_from_pdb, surfmap_from_matrix
@@ -50,7 +52,7 @@ def surfmap_container(params: Parameters):
     )
 
     cli.show()
-    cli.run()
+    return cli.run()
 
 
 def main():
@@ -58,7 +60,7 @@ def main():
     set_root_logger(outpath=params.outdir, level=params.verbose)
 
     if params.docker:
-        surfmap_container(params=params)
+        sys.exit(surfmap_container(params=params))
     else:
         surfmap_local(params=params)
 

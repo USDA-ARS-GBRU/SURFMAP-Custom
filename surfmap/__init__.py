@@ -11,6 +11,7 @@ PATH_MSMS = ROOT / "surfmap" / "utils" / "MSMS"
 PATH_TO_EXAMPLES = ROOT / "surfmap"/ "examples"
 
 
+DOCKER_REPOSITORY = os.getenv('DOCKER_REPOSITORY', 'lopesi2bc/surfmap')
 __VERSION__ = '2.2.1'
 SURFMAP_DOCKER_VERSION = os.getenv('SURFMAP_DOCKER_VERSION', __VERSION__)
 
