@@ -3,7 +3,6 @@
 **/*io.mc
 APBS*
 # MSMS
-Dockerfile
 example/output**
 **.Rmd
 .vscode

@@ -269,7 +269,7 @@ class Parameters:
         self.resfile: str = args.res
         if self.resfile and not Path(self.resfile).exists():
             print("The residue file could not be found (arg -res). It seems that this file does not exist.\nThis could be due to a mistake in the path to the file.\nExiting now.")
-            exit()
+            exit(1)
 
         # define radius in angström added to usual atomic radius (used for calculation solvent excluded surface)
         self.rad: float = args.rad
@@ -318,7 +318,7 @@ class Parameters:
         if exe_not_found:
             print(f"\nError: the following executable(s) required to run SURFMAP has(ve) not been detected on your system: {', '.join(exe_not_found)}.\nPlease install the missing executable(s).\n")
             print(f"If you think that an executable is present on your system but is detected as missing, please make sure to make it accessible no matter the current directory. It can be done by setting your search path (export PATH=$PATH:/...)\n")
-            exit()
+            exit(1)
 
     
     def _check_docker_install(self):
@@ -330,31 +330,31 @@ class Parameters:
     def _check_mutually_exclusive_args(self, args):
         if not args.pdb and not args.mat:
             print("You need to provide either a pdb file or a matrix file in input.\nexiting now.")
-            exit()
+            exit(1)
         elif args.pdb and args.mat:
             print("You need to provide either a pdb file or a matrix file in input. you cannot provide both.\nexiting now.")
-            exit()
+            exit(1)
 
     def _check_pdbarg(self):
         if not Path(self.pdbarg).exists():
             print("Error: the pdb file {} does not exist".format(self.pdbarg))
-            exit()
+            exit(1)
         if Path(self.pdbarg).suffix != ".pdb":
             print("The file provided in input seems to not be a pdb file. Please provide a file with a '.pdb' extension.")
-            exit()
+            exit(1)
 
     def _check_rad(self):
         if not 10.0 >= self.rad >= 0.5:
             print("The radius given in input (arg -rad) is either too large or too small. Please provide a number between 0.5 and 10.\nExiting now.")
-            exit()
+            exit(1)
 
     def _check_cellsize(self):
         if 180 % self.cellsize != 0:
             print("cellsize (arg -s) is not a multiplier of 180.\nThe cell size needs to be a multiplier of 180 in order to compute the grid. \nExiting now.")
-            exit()
+            exit(1)
         elif self.cellsize > 20:
             print("the cellsize is too large (arg -s).\nThe maximum cell size authorized is 20, which represents a 9*18 squares grid. \nExiting now.")
-            exit()
+            exit(1)
 
     def _set_outdir(self, args):
         self._is_outdir_default = True

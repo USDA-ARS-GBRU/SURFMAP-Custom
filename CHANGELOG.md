@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [2.2.1] - 2026-07-29
 
 PATCH release of SURFMAP - contains breaking changes for local (non-Docker) users, see below
+
+### Added
+- functional CLI test suite: `surfmap/tests/tests_parameters.py` (fast, hermetic `Parameters` input-validation unit tests) and `surfmap/tests/tests_functional_docker.py` (real end-to-end `--docker` tests covering `-tomap all/electrostatics/stickiness --keep`, `-res`, `binding_sites`, invalid input, `-v`/`-h`, checking exit codes and produced/removed output files)
+- `.github/workflows/development-ci.yml`: runs both test suites on every push to `development` (and PRs targeting `development`/`master`), building the Dockerfile fresh with GitHub Actions layer caching; if green and `__VERSION__` was bumped, automatically fast-forwards `development` to `master`, tags `vX.Y.Z`, and creates a GitHub Release (which in turn triggers `release-assets.yml`)
+- `CONTRIBUTING.md`: development process documentation (branching model, running tests locally, what each CI workflow does, and the full release process - including the manual Docker Hub image push step needed for `lopesi2bc/surfmap`, which no CI workflow automates yet)
+
 
 ### Changed
 - `setup.py` now reads the package version directly from `surfmap.__VERSION__` instead of hardcoding it, avoiding version drift
@@ -24,6 +31,8 @@ PATCH release of SURFMAP - contains breaking changes for local (non-Docker) user
 - `DockerCLI.run()` now returns the container's exit code, and `main()` in `surfmap.py`, `extract_interface.py` and `write_pdb_interface.py` propagates it via `sys.exit()`, instead of always exiting `0` regardless of failures inside the container
 - `_check_docker_install()` in `parameters.py` now actually exits when docker is not found on the system, instead of printing a warning and continuing anyway
 - input files mounted for `--docker` runs (e.g. `-pdb` and `-res`) no longer collide when they share the same basename from different host directories, by index-prefixing their container mount paths
+- `surfmap/lib/parameters.py`: several validation error paths (missing/wrong-suffix `-pdb`, missing `-res` file, out-of-range `-rad`, invalid `-s` cellsize, missing local R/APBS/awk requirements) called bare `exit()`, which exits with code `0` even on error, making failures look like successes to scripts/CI. Now consistently `exit(1)`.
+
 
 ## [2.2.0] - 2024-05-14
 

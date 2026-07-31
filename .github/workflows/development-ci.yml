@@ -1,0 +1,124 @@
+name: Development CI - test and auto-release
+
+# On every push to `development` (and on PRs targeting development/master, as
+# a pre-merge signal):
+#   1. run the fast Parameters validation unit tests (no docker/R needed)
+#   2. build the current Dockerfile (cached via GitHub Actions cache) and run
+#      the functional CLI tests against it end-to-end (R/APBS/pdb2pqr/freesasa)
+#
+# If both pass AND this was a push to `development` AND surfmap/__init__.py's
+# __VERSION__ was actually bumped (no matching `vX.Y.Z` tag exists yet), the
+# `release` job:
+#   - fast-forward pushes development -> master (no --force; fails loudly on
+#     divergence instead of clobbering history)
+#   - tags the pushed commit `vX.Y.Z`
+#   - creates a GitHub Release from that tag, which triggers
+#     .github/workflows/release-assets.yml (release: published)
+#
+# If the version was not bumped, the release job's steps are skipped cleanly
+# (no duplicate-tag error, no failed job) - this is intentional: not every
+# green push to development is meant to become a release.
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development, master]
+
+permissions:
+  contents: write
+
+env:
+  # local-only image tag used to run the functional --docker tests against
+  # the current commit's Dockerfile, without touching Docker Hub.
+  DOCKER_REPOSITORY: surfmap
+  SURFMAP_DOCKER_VERSION: ci-test
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install surfmap (entry point only, --docker needs no [local] extras)
+        run: pip install --no-cache-dir -e .
+
+      - name: Run fast Parameters validation unit tests
+        run: python -m unittest discover -s surfmap/tests -p "tests_parameters.py" -v
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build surfmap docker image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.DOCKER_REPOSITORY }}:${{ env.SURFMAP_DOCKER_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run functional CLI tests against the built image
+        run: python -m unittest discover -s surfmap/tests -p "tests_functional_docker.py" -v
+
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine current version and whether it needs releasing
+        id: version
+        run: |
+          VERSION=$(python setup.py --version)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists on origin - version was not bumped, skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag v$VERSION not found on origin - will release."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git identity
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fast-forward push development -> master
+        if: steps.version.outputs.should_release == 'true'
+        run: git push origin HEAD:refs/heads/master
+
+      - name: Tag the release
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          git tag "v${{ steps.version.outputs.version }}" "$(git rev-parse HEAD)"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        if: steps.version.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          target_commitish: master
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
