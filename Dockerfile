@@ -100,6 +100,12 @@ ENV APBS=/surfmap/APBS
 ENV LD_LIBRARY_PATH=$APBS/lib
 ENV PATH=$APBS/bin:$PATH
 
+# containers are run with --user <host uid>:<host gid> (see DockerCLI in
+# surfmap/lib/docker.py); that numeric uid has no matching /etc/passwd entry,
+# so $HOME can't be resolved automatically - pin it to /tmp (always
+# world-writable) so tools reading $HOME (R, pip caches, ...) keep working
+ENV HOME=/tmp
+
 # compiled R packages (optparse, data.table, mapproj + their dependencies) from the builder stage
 COPY --from=surfmap_builder /usr/local/lib/R/site-library /usr/local/lib/R/site-library
 
@@ -114,11 +120,11 @@ ENV PATH=/surfmap/.env/bin:$PATH
 # create surfmap group and user, non-interactively (from https://github.com/dnaprawa/dockerfile-best-practices#run-as-a-non-root-user)
 RUN adduser --disabled-password --gecos "" surfmap && \
     # adduser defaults to a 750 home dir, which blocks *any* other uid from
-    # even traversing into it - since surfmap/lib/docker.py bind-mounts the
-    # host's input/output directories under /home/surfmap, this silently
-    # breaks --docker for every host uid other than surfmap's own (1000)
-    # (e.g. CI runners, shared servers), regardless of the mounted paths'
-    # own permissions. Open up traversal (execute bit) for all.
+    # even traversing into it - since containers run as the invoking host
+    # user (--user, see surfmap/lib/docker.py) and the host's input/output
+    # directories are bind-mounted under /home/surfmap, that would break
+    # --docker for every host uid other than surfmap's own (1000), e.g. CI
+    # runners or shared servers. Open up traversal (execute bit) for all.
     chmod o+rx /home/surfmap
 
 # go to home surfmap

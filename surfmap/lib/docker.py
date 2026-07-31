@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import subprocess
 import sys
 from typing import List
@@ -12,6 +13,18 @@ class DockerCLI:
 
     def __init__(self, args, input_args: List[str], output_args: str, out_dirname: str, input_dir: str='/home/surfmap/input', output_dir: str='/home/surfmap/output') -> None:
         self.cli = ['docker', 'run', '--rm']
+        # Run as the invoking host user rather than the image's baked-in
+        # "surfmap" user (uid 1000): the bind-mounted input/output paths are
+        # owned by the host user, so matching uid/gid is what makes them
+        # readable/writable from inside the container. Without this it only
+        # worked by coincidence on hosts where the user happens to be uid
+        # 1000 (most single-user Linux desktops), and failed with a
+        # PermissionError elsewhere (CI runners, shared servers, secondary
+        # accounts). It also means output files end up owned by the user who
+        # ran surfmap, instead of by uid 1000.
+        # Note: this requires /home/surfmap to be traversable by other uids,
+        # see the corresponding chmod in the Dockerfile.
+        self.cli += ['--user', f'{os.getuid()}:{os.getgid()}']
         if sys.stdin.isatty():
             # only request a pseudo-tty when one is actually available, otherwise
             # docker fails with "the input device is not a TTY" (CI, scripts, pipes, ...)
@@ -42,21 +55,9 @@ class DockerCLI:
             self.container_input_paths.append(container_path)
             mnt_point += ["-v", f"{Path(input_file).resolve()}:{container_path}:ro"]
 
-        resolved_output = Path(self.output).resolve()
-        self._ensure_writable(resolved_output)
-        mnt_point += ["-v", f"{resolved_output}:{self.output_dir}:rw"]
+        mnt_point += ["-v", f"{Path(self.output).resolve()}:{self.output_dir}:rw"]
 
         return mnt_point
-
-    @staticmethod
-    def _ensure_writable(path: Path):
-        """Add world-write permission to the output directory this tool
-        itself creates (see __init__), so the container's fixed "surfmap"
-        user can write into it regardless of the host's uid/gid. Input files
-        aren't touched the same way: they're pre-existing user-owned data, so
-        their host permissions (typically world-readable by default) are left
-        as-is rather than silently mutated."""
-        path.chmod(path.stat().st_mode | 0o777)
 
     def _arguments(self):
         cmd_arguments = []
