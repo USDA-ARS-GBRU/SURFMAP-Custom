@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import subprocess
 import sys
 from typing import List
@@ -13,13 +12,6 @@ class DockerCLI:
 
     def __init__(self, args, input_args: List[str], output_args: str, out_dirname: str, input_dir: str='/home/surfmap/input', output_dir: str='/home/surfmap/output') -> None:
         self.cli = ['docker', 'run', '--rm']
-        # run as the invoking host user instead of the image's baked-in
-        # "surfmap" user, so writes to the bind-mounted output directory
-        # succeed regardless of the host's uid/gid - it only happened to work
-        # before on hosts where the user is coincidentally uid 1000 (the
-        # image's fixed "surfmap" uid), e.g. most single-user Linux desktops,
-        # but not e.g. CI runners or shared servers.
-        self.cli += ['--user', f'{os.getuid()}:{os.getgid()}']
         if sys.stdin.isatty():
             # only request a pseudo-tty when one is actually available, otherwise
             # docker fails with "the input device is not a TTY" (CI, scripts, pipes, ...)
@@ -50,9 +42,21 @@ class DockerCLI:
             self.container_input_paths.append(container_path)
             mnt_point += ["-v", f"{Path(input_file).resolve()}:{container_path}:ro"]
 
-        mnt_point += ["-v", f"{Path(self.output).resolve()}:{self.output_dir}:rw"]
+        resolved_output = Path(self.output).resolve()
+        self._ensure_writable(resolved_output)
+        mnt_point += ["-v", f"{resolved_output}:{self.output_dir}:rw"]
 
         return mnt_point
+
+    @staticmethod
+    def _ensure_writable(path: Path):
+        """Add world-write permission to the output directory this tool
+        itself creates (see __init__), so the container's fixed "surfmap"
+        user can write into it regardless of the host's uid/gid. Input files
+        aren't touched the same way: they're pre-existing user-owned data, so
+        their host permissions (typically world-readable by default) are left
+        as-is rather than silently mutated."""
+        path.chmod(path.stat().st_mode | 0o777)
 
     def _arguments(self):
         cmd_arguments = []
