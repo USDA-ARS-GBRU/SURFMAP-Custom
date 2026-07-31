@@ -55,6 +55,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Cache APBS binary distribution
+        id: cache-apbs
+        uses: actions/cache@v4
+        with:
+          path: softwares/APBS-3.4.1.Linux
+          key: apbs-3.4.1-linux
+
+      - name: Fetch APBS binary distribution (not tracked in git, see .gitignore)
+        if: steps.cache-apbs.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o apbs.zip \
+            https://github.com/Electrostatics/apbs/releases/download/v3.4.1/APBS-3.4.1.Linux.zip
+          mkdir -p softwares
+          unzip -q apbs.zip -d softwares
+          rm apbs.zip
+
+      - name: Patch known APBS psize.py bug (see i2bc/SURFMAP#18)
+        run: |
+          PSIZE=softwares/APBS-3.4.1.Linux/share/apbs/tools/manip/psize.py
+          if grep -qF 'if nsmall <= 0:' "$PSIZE"; then
+            echo "Found buggy 'if nsmall <= 0:' in $PSIZE - patching to 'if nsmall[i] <= 0:'"
+            sed -i 's/if nsmall <= 0:/if nsmall\[i\] <= 0:/' "$PSIZE"
+          else
+            echo "$PSIZE already patched (or line not found) - no change needed."
+          fi
+
       - name: Build surfmap docker image (cached)
         uses: docker/build-push-action@v6
         with:
