@@ -1,32 +1,42 @@
 name: Development CI - test and auto-release
 
-# On every push to `development` (and on PRs targeting development/master, as
-# a pre-merge signal):
+# On every push to `development`/`master` (and on PRs targeting them, as a
+# pre-merge signal):
 #   1. run the fast Parameters validation unit tests (no docker/R needed)
 #   2. build the current Dockerfile (cached via GitHub Actions cache) and run
 #      the functional CLI tests against it end-to-end (R/APBS/pdb2pqr/freesasa)
 #
-# If both pass AND this was a push to `development` AND surfmap/__init__.py's
-# __VERSION__ was actually bumped (no matching `vX.Y.Z` tag exists yet), the
-# `release` job:
-#   - fast-forward pushes development -> master (no --force; fails loudly on
-#     divergence instead of clobbering history)
-#   - tags the pushed commit `vX.Y.Z`
-#   - creates a GitHub Release from that tag, which triggers
-#     .github/workflows/release-assets.yml (release: published)
+# Releasing is split in two, because `master` is a protected branch that only
+# accepts changes through a pull request:
 #
-# If the version was not bumped, the release job's steps are skipped cleanly
-# (no duplicate-tag error, no failed job) - this is intentional: not every
-# green push to development is meant to become a release.
+#   - `open-release-pr` (on a green push to `development`): if
+#     surfmap/__init__.py's __VERSION__ was bumped (no matching `vX.Y.Z` tag
+#     exists yet), opens a `development` -> `master` pull request for you to
+#     review and merge. Nothing is published at this point.
+#   - `release` (on a push to `master`, i.e. once you merge that PR): tags the
+#     merged commit `vX.Y.Z` and creates a GitHub Release from it, which
+#     triggers .github/workflows/release-assets.yml (release: published).
+#
+# If the version was not bumped, both jobs skip their steps cleanly (no
+# duplicate-tag error, no failed job) - this is intentional: not every green
+# push is meant to become a release.
+#
+# Note: the release PR is opened with the default GITHUB_TOKEN, and GitHub
+# deliberately does not trigger new workflow runs for events raised by that
+# token - so the PR itself will show no checks. That's harmless here: the very
+# same commit was already tested by the `test` job on the `development` push.
+# If you later enable "require status checks" on `master`, swap GITHUB_TOKEN
+# for a PAT / GitHub App token so the PR gets its own checks.
 
 on:
   push:
-    branches: [development]
+    branches: [development, master]
   pull_request:
     branches: [development, master]
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   # local-only image tag used to run the functional --docker tests against
@@ -93,7 +103,7 @@ jobs:
       - name: Run functional CLI tests against the built image
         run: python -m unittest discover -s surfmap/tests -p "tests_functional_docker.py" -v
 
-  release:
+  open-release-pr:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/development'
     runs-on: ubuntu-latest
@@ -120,7 +130,69 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists on origin - version was not bumped, skipping release."
+            echo "Tag v$VERSION already exists on origin - version was not bumped, skipping release PR."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag v$VERSION not found on origin - a release PR is needed."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open release pull request (development -> master)
+        if: steps.version.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # an already-open development -> master PR automatically includes
+          # this new commit, so only open one if none exists yet
+          EXISTING=$(gh pr list --base master --head development --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING (development -> master) is already open and now includes this commit."
+            gh pr edit "$EXISTING" --title "Release v$VERSION"
+          else
+            gh pr create --base master --head development \
+              --title "Release v$VERSION" \
+              --body "Automated release PR opened by \`development-ci.yml\`.
+
+          \`__VERSION__\` is \`$VERSION\` and no \`v$VERSION\` tag exists yet.
+          The tests already passed on this commit on \`development\`.
+
+          Merging this PR will tag \`v$VERSION\` and publish a GitHub Release
+          (which in turn triggers \`release-assets.yml\`).
+
+          Remember the manual Docker Hub push afterwards - see CONTRIBUTING.md."
+          fi
+
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine current version and whether it needs releasing
+        id: version
+        run: |
+          # avoid `python setup.py --version`: it unconditionally imports
+          # setuptools at module load time, which isn't guaranteed to be
+          # present in every Python environment (e.g. 3.12+ venvs no longer
+          # bundle it by default). Read __VERSION__ directly instead.
+          VERSION=$(python -c "import surfmap; print(surfmap.__VERSION__)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists on origin - nothing to release."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           else
             echo "Tag v$VERSION not found on origin - will release."
@@ -132,10 +204,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Fast-forward push development -> master
-        if: steps.version.outputs.should_release == 'true'
-        run: git push origin HEAD:refs/heads/master
 
       - name: Tag the release
         if: steps.version.outputs.should_release == 'true'

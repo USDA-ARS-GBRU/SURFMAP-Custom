@@ -9,9 +9,9 @@ the manual Docker Hub step CI does **not** automate yet).
 - `development`: integration branch. All feature/fix work targets this
   branch (directly or via PR).
 - `master`: stable, released branch. README's install instructions point
-  here (`@master`). Nothing should be pushed to `master` directly - it is
-  updated automatically by CI (see [Release process](#release-process)
-  below) whenever `development` is green and its version was bumped.
+  here (`@master`). It is protected and only accepts changes through a
+  pull request - CI opens that PR for you when a release is due (see
+  [Release process](#release-process) below).
 
 ## Running tests locally
 
@@ -54,24 +54,34 @@ These tests skip themselves cleanly (with an explanatory message) if
 
 ### `.github/workflows/development-ci.yml`
 
-Triggers on every push to `development`, and on pull requests targeting
-`development`/`master`. Two jobs:
+Triggers on every push to `development`/`master`, and on pull requests
+targeting them. Three jobs:
 
 1. **`test`**: installs surfmap, runs the fast unit tests, builds the
    Dockerfile from the current commit (cached via the GitHub Actions cache
    backend, so it's not pulled from Docker Hub), and runs the functional
    tests against that freshly-built image.
-2. **`release`** (only runs on a push to `development`, after `test` passes):
-   reads the current version from `surfmap/__init__.py: __VERSION__`. If a
-   git tag `vX.Y.Z` for that version doesn't already exist, it:
-   - fast-forward pushes `development` to `master` (no `--force` - fails
-     loudly instead of clobbering history if the two have diverged)
-   - tags the pushed commit `vX.Y.Z`
-   - creates a GitHub Release from that tag
+2. **`open-release-pr`** (only on a push to `development`, after `test`
+   passes): reads the current version from `surfmap/__init__.py: __VERSION__`.
+   If a git tag `vX.Y.Z` for that version doesn't already exist yet, it opens
+   a `development` -> `master` pull request titled `Release vX.Y.Z` (or
+   retitles the one already open, which automatically includes the new
+   commit). Nothing is published at this point - merging is your call.
+3. **`release`** (only on a push to `master`, i.e. once you merge that PR,
+   after `test` passes): tags the merged commit `vX.Y.Z` and creates a
+   GitHub Release from it.
 
-   If the version was **not** bumped since the last release, this job's
-   steps are skipped cleanly - not every green push to `development` is
-   meant to become a release.
+If the version was **not** bumped, both release jobs skip their steps
+cleanly - not every green push is meant to become a release.
+
+> `master` is a protected branch that only accepts changes through a pull
+> request, which is why CI opens a PR instead of pushing to it directly.
+> Note the release PR is opened with the default `GITHUB_TOKEN`, and GitHub
+> deliberately doesn't trigger workflow runs for events raised by that token,
+> so the PR shows no checks of its own - harmless, since the exact same commit
+> was already tested on `development`. If you ever enable "require status
+> checks" on `master`, swap `GITHUB_TOKEN` for a PAT / GitHub App token so the
+> PR gets its own checks and can be merged.
 
 ### `.github/workflows/release-assets.yml`
 
@@ -91,9 +101,12 @@ step below.
    dated entry to [CHANGELOG.md](CHANGELOG.md) describing the change
    (do this for every user-facing or behavioral code change, not just at
    release time - it keeps the release entry accurate and easy to write).
-2. Push (or merge a PR) to `development`. If CI is green, it automatically
-   pushes to `master`, tags `vX.Y.Z`, and creates a GitHub Release, which in
-   turn triggers `release-assets.yml` to publish the sdist assets.
+2. Push (or merge a PR) to `development`. If CI is green and the version was
+   bumped, it opens a `Release vX.Y.Z` pull request from `development` to
+   `master`.
+3. Review and merge that PR. Merging it tags `vX.Y.Z` and creates a GitHub
+   Release, which in turn triggers `release-assets.yml` to publish the sdist
+   assets.
 3. **Manual step - build and push the Docker image to Docker Hub.**
    `surfmap --docker` runs pull `${DOCKER_REPOSITORY}:${SURFMAP_DOCKER_VERSION}`
    (`surfmap/__init__.py`), which default to `lopesi2bc/surfmap:<__VERSION__>`

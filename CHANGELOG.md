@@ -12,7 +12,7 @@ PATCH release of SURFMAP - contains breaking changes for local (non-Docker) user
 
 ### Added
 - functional CLI test suite: `surfmap/tests/tests_parameters.py` (fast, hermetic `Parameters` input-validation unit tests) and `surfmap/tests/tests_functional_docker.py` (real end-to-end `--docker` tests covering `-tomap all/electrostatics/stickiness --keep`, `-res`, `binding_sites`, invalid input, `-v`/`-h`, checking exit codes and produced/removed output files)
-- `.github/workflows/development-ci.yml`: runs both test suites on every push to `development` (and PRs targeting `development`/`master`), building the Dockerfile fresh with GitHub Actions layer caching; if green and `__VERSION__` was bumped, automatically fast-forwards `development` to `master`, tags `vX.Y.Z`, and creates a GitHub Release (which in turn triggers `release-assets.yml`)
+- `.github/workflows/development-ci.yml`: runs both test suites on every push to `development`/`master` (and PRs targeting them), building the Dockerfile fresh with GitHub Actions layer caching; if green and `__VERSION__` was bumped, opens a `development` -> `master` release pull request (`master` is protected and only accepts changes through a PR), and once that PR is merged, tags `vX.Y.Z` and creates a GitHub Release (which in turn triggers `release-assets.yml`)
 - `CONTRIBUTING.md`: development process documentation (branching model, running tests locally, what each CI workflow does, and the full release process - including the manual Docker Hub image push step needed for `lopesi2bc/surfmap`, which no CI workflow automates yet)
 
 
