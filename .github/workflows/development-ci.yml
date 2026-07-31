@@ -86,7 +86,11 @@ jobs:
       - name: Determine current version and whether it needs releasing
         id: version
         run: |
-          VERSION=$(python setup.py --version)
+          # avoid `python setup.py --version`: it unconditionally imports
+          # setuptools at module load time, which isn't guaranteed to be
+          # present in every Python environment (e.g. 3.12+ venvs no longer
+          # bundle it by default). Read __VERSION__ directly instead.
+          VERSION=$(python -c "import surfmap; print(surfmap.__VERSION__)")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then

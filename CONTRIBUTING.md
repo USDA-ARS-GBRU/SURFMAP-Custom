@@ -104,7 +104,7 @@ step below.
    completes:
 
    ```bash
-   VERSION=$(python setup.py --version)
+   VERSION=$(python -c "import surfmap; print(surfmap.__VERSION__)")
    docker build -t lopesi2bc/surfmap:$VERSION -t lopesi2bc/surfmap:latest .
    docker push lopesi2bc/surfmap:$VERSION
    docker push lopesi2bc/surfmap:latest
