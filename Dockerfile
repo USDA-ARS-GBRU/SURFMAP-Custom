@@ -100,6 +100,14 @@ ENV APBS=/surfmap/APBS
 ENV LD_LIBRARY_PATH=$APBS/lib
 ENV PATH=$APBS/bin:$PATH
 
+# containers are run with --user <host uid>:<host gid> (see DockerCLI in
+# surfmap/lib/docker.py) so that writes to the bind-mounted output directory
+# work regardless of the host's uid; that numeric uid/gid has no matching
+# /etc/passwd entry, so $HOME can't be resolved automatically - pin it to
+# /tmp (always world-writable) so tools that read $HOME (R, pip caches, ...)
+# keep working
+ENV HOME=/tmp
+
 # compiled R packages (optparse, data.table, mapproj + their dependencies) from the builder stage
 COPY --from=surfmap_builder /usr/local/lib/R/site-library /usr/local/lib/R/site-library
 

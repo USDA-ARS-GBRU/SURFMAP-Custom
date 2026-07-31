@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import subprocess
 import sys
 from typing import List
@@ -12,6 +13,13 @@ class DockerCLI:
 
     def __init__(self, args, input_args: List[str], output_args: str, out_dirname: str, input_dir: str='/home/surfmap/input', output_dir: str='/home/surfmap/output') -> None:
         self.cli = ['docker', 'run', '--rm']
+        # run as the invoking host user instead of the image's baked-in
+        # "surfmap" user, so writes to the bind-mounted output directory
+        # succeed regardless of the host's uid/gid - it only happened to work
+        # before on hosts where the user is coincidentally uid 1000 (the
+        # image's fixed "surfmap" uid), e.g. most single-user Linux desktops,
+        # but not e.g. CI runners or shared servers.
+        self.cli += ['--user', f'{os.getuid()}:{os.getgid()}']
         if sys.stdin.isatty():
             # only request a pseudo-tty when one is actually available, otherwise
             # docker fails with "the input device is not a TTY" (CI, scripts, pipes, ...)
