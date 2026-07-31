@@ -7,17 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.1] - 2026-07-29
 
-PATCH release of SURFMAP - no breaking changes
+PATCH release of SURFMAP - contains breaking changes for local (non-Docker) users, see below
 
 ### Changed
 - `setup.py` now reads the package version directly from `surfmap.__VERSION__` instead of hardcoding it, avoiding version drift
 - `freesasa` dependency is now resolved per Python version: `2.1.0` for `python_version < '3.12'`, `2.2.1` for `python_version >= '3.12'` (tested up to Python 3.14)
 - input file mounts for `--docker` runs are now mounted read-only (`:ro`) instead of the implicit read-write default, since surfmap never writes to its inputs
+- Python dependencies needed only for local execution (`freesasa`, `numpy`, `pdb2pqr`, `requests`) are no longer installed by default; `pip install surfmap` alone is now enough to use `--docker` (only the `docker` CLI is required), use `pip install surfmap[local]` to run the computation pipeline locally [BREAKING CHANGE for local users: run `pip install surfmap[local]` instead of `pip install surfmap`]
+- `surfmap.lib.core` (and its `numpy` dependency chain), and the `freesasa`-dependent imports in `extract_interface.py`/`write_pdb_interface.py`, are now imported lazily, only when actually running locally, so they are no longer required just to launch `--docker`
+- README's install instructions now use a stable GitHub Releases URL (`.../releases/latest/download/surfmap-latest.tar.gz`), backed by a new `.github/workflows/release-assets.yml` CI workflow that publishes it on every release; installing no longer requires manually downloading an archive first or updating a version number in the docs
+- README's "How to install SURFMAP" section is simplified: the recommended `pip install` command (with an inlined, optional `venv` isolated-environment setup) is now shown directly instead of behind a collapsed "Option 1" section, the previous "Option 2" (git-based install) is folded into the source/development install as a one-line alternative using `@master` (fixing the previously stale `@main`/`@v2.1.0` references), and the separate "Recommendation" section on third-party `virtualenv` usage is removed in favor of the inlined `venv` steps
 
 ### Fixed
 - `parsePDBParticule()` in `Structure.py` no longer truncates shell particle serial numbers above 9999, which could make distinct shell points collide on the same identifier and overwrite each other's coordinates, leading to incorrect closest-atom assignments during map generation
 - `DockerCLI` (`docker.py`) no longer forces `-it`, which made `--docker` fail with "the input device is not a TTY" when run non-interactively (scripts, CI, some editor terminals); a pseudo-tty is now only requested when stdin is actually a TTY
-- `DockerCLI.run()` now returns the container's exit code, and `surfmap.py`'s `main()` propagates it via `sys.exit()`, instead of always exiting `0` regardless of failures inside the container
+- `DockerCLI.run()` now returns the container's exit code, and `main()` in `surfmap.py`, `extract_interface.py` and `write_pdb_interface.py` propagates it via `sys.exit()`, instead of always exiting `0` regardless of failures inside the container
 - `_check_docker_install()` in `parameters.py` now actually exits when docker is not found on the system, instead of printing a warning and continuing anyway
 - input files mounted for `--docker` runs (e.g. `-pdb` and `-res`) no longer collide when they share the same basename from different host directories, by index-prefixing their container mount paths
 

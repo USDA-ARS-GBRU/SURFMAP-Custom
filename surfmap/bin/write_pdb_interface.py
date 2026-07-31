@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
+import sys
 
 from surfmap.lib.docker import DockerCLI
-from surfmap.lib.interface import pdb_from_interface
 
 
 def get_args():
@@ -48,6 +48,10 @@ def get_args():
 
 
 def run_from_local(args: argparse.Namespace):
+    # imported lazily: freesasa (a "local"-extra dependency) is not required
+    # when only using --docker
+    from surfmap.lib.interface import pdb_from_interface
+
     pdb_filename = args.pdb
     res_filename = args.res
     outdir = Path(args.out)
@@ -66,14 +70,14 @@ def run_from_container(args: argparse.Namespace):
     )
     
     cli.show()
-    cli.run()
+    return cli.run()
     
 
 def main():
     args = get_args()
 
     if args.docker:
-        run_from_container(args)
+        sys.exit(run_from_container(args))
     else:
         run_from_local(args)
 

@@ -11,9 +11,9 @@
   <a href="https://opensource.org/licenses/MIT" target="_blank"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat" alt="MIT License"/></a>
   <!-- <br> -->
 
-  <!-- <img src="https://badgen.net/docker/pulls/lopesi2bc/surfmap?icon=docker&label=pulls" alt="Docker Pulls"/>
+   <img src="https://badgen.net/docker/pulls/lopesi2bc/surfmap?icon=docker&label=pulls" alt="Docker Pulls"/>
   <img src="https://img.shields.io/github/stars/i2bc/SURFMAP" alt="GitHub Stars"/>
-  <img src="https://img.shields.io/github/forks/i2bc/SURFMAP.svg?style=flat" alt="GitHub Fork"/>
+  <!-- <img src="https://img.shields.io/github/forks/i2bc/SURFMAP.svg?style=flat" alt="GitHub Fork"/>
   <img src="https://img.shields.io/github/watchers/i2bc/SURFMAP.svg?style=social&style=plastic" alt="GitHub Watchers"/> -->
 </div>
 
@@ -56,14 +56,16 @@ SURFMAP is a free standalone and easy-to-use command-line interface (CLI) softwa
 
 SURFMAP is a CLI tool that requires a UNIX-based OS system. It is written in python (version 3.7), R (version 3.6). It relies on the already included MSMS software ([1](#ref-1)) and may optionally require APBS ([2](#ref-2)) if the user wants to perform electrostatics calculations.
 
-All those requirements (including APBS) are met in a [predefined Docker image](https://hub.docker.com/r/lopesi2bc/surfmap/tags) that we recommend the user to use. 
+All those requirements (including APBS) are met in a [predefined Docker image](https://hub.docker.com/r/lopesi2bc/surfmap/tags). **We strongly recommend using the Docker image**: it bundles R, MSMS and APBS so you don't have to install/manage them yourself, and it only requires a minimal (dependency-light) install of the SURFMAP python package (see [below](#How-to-install-SURFMAP)).
 
 <details open>
-<summary><b>For a usage of the docker image</b></summary>
+<summary><b>For a usage of the docker image (recommended)</b></summary>
 
 - an UNIX-based OS system (any linux distribution, a MacOS system or [WSL2](https://learn.microsoft.com/fr-fr/windows/wsl/install) on windows)
 - [Python >= 3.7](https://www.python.org/downloads)
 - [Docker](https://docs.docker.com/get-docker/)
+
+No other Python package is required: `pip install surfmap` alone is enough, R/MSMS/APBS are all provided by the Docker image.
 
 </details>
 
@@ -74,98 +76,64 @@ All those requirements (including APBS) are met in a [predefined Docker image](h
 - [Python >= 3.7](https://www.python.org/downloads)
 - [R >= 3.6](https://cran.r-project.org/)
 - [APBS](https://github.com/Electrostatics/apbs/releases) (optional - only if you want to compute electrostatic potential)
+
+Running SURFMAP's computation pipeline locally (i.e. without `--docker`) also requires the extra Python dependencies pulled in by the `local` install extra (see [below](#How-to-install-SURFMAP)).
  
 </details>
 <br>
 
-> :bell: Please note that **whether you want to use the Docker image of SURFMAP or not, you will still need to [install the SURFMAP package](#How-to-install-SURFMAP)**. Indeed the package contains internal features that make the use of the Docker image totally transparent for the user who will not have to enter 'complex' commands for the connection of useful mounting points. In fact, the SURFMAP commands are almost exactly the same between the use of the docker image or not (see [here](#cmd_docker_or_not)).
-
-
-### Recommendation
-
-We strongly recommend that you install the SURFMAP package and its python dependencies in an isolated environment. Click in the section below for a short illustration on why and how to use an isolated environment.
-
-<details style="margin-left: 32px">
-<summary>How to use an isolated environment (recommended)</summary>
-<br>
-<p>
-By using an isolated environment you will avoid potential version conflicts between python libraries when working on different projects. Some of the most popular tools to work with isolated python environments are [virtualenv](https://pypi.org/project/virtualenv/), [pyenv](https://pypi.org/project/pyenv/), [pipenv](https://pypi.org/project/pipenv/). 
-</p>
-
-Below is an example on how to use [virtualenv](https://pypi.org/project/virtualenv/).
-
-#### 1. Install virtualenv
-```bash
-# upgrade pip to its latest version
-python3 -m pip install --upgrade pip
-
-# install virtualenv
-python3 -m pip install virtualenv
-```
-
-#### 2. Create and activate an isolated environment
-```bash
-# create an isolated environment named 'myenv' (to adapt)
-virtualenv myenv
-
-# activate your isolated environment
-source myenv/bin/activate
-```
-
-Once activated, any python library you'll install using pip will be installed in this isolated environment, and python will only have access to these packages.
-
-Once you're done working on your project, simply type `deactivate` to exit the environment.
-</details>
+> :bell: Please note that **whether you want to use the Docker image of SURFMAP or not, you will still need to [install the SURFMAP package](#How-to-install-SURFMAP)**. Indeed the package contains internal features that make the use of the Docker image totally transparent for the user who will not have to enter 'complex' commands for the connection of useful mounting points. In fact, the SURFMAP commands are almost exactly the same between the use of the docker image or not (see [here](#cmd_docker_or_not)). If you only intend to use the Docker image, a plain `pip install surfmap` is enough: the heavier Python dependencies (`freesasa`, `numpy`, `pdb2pqr`, ...) are only pulled in through the `surfmap[local]` install extra, needed for local (non-Docker) execution.
 
 
 ## How to install SURFMAP
 [Go to the top](#Table-of-contents)
 
-First, make sure you meet the [system requirements](#requirements) outlined earlier and consider the [recommendation](#recommendation). Then, follow instructions described in option 1 or 2 if you're not interested in accessing/modifying the source code, otherwise prefer option 3. 
-
-<a id="install_option1"></a>
-<details open>
-<summary><h4>Option 1: from the archive (git not required)</h4></summary>
-
-First download an archive of our latest release <a href="https://github.com/i2bc/SURFMAP/releases/latest" target="_blank">here</a>.
+Make sure you meet the [system requirements](#requirements) outlined above, then run:
 
 ```bash
-# upgrade pip to its latest version
+# 1. create and activate an isolated environment (optional but recommended - uses
+#    Python's built-in venv, no extra install needed; skip if you manage envs another way)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. upgrade pip
 python3 -m pip install --upgrade pip
 
-# install SURFMAP vx.x.x
-python3 -m pip install SURFMAP-x.x.x.zip # (or .tar.gz) 
+# 3. install SURFMAP - latest release (only Docker is required to run it, see requirements above)
+python3 -m pip install "https://github.com/i2bc/SURFMAP/releases/latest/download/surfmap-latest.tar.gz"
 ```
-</details>
 
+> :bell: The command above is enough if you only intend to run SURFMAP through **`--docker`** (recommended). To also run the computation pipeline locally, install the `local` extra instead: `python3 -m pip install "surfmap[local] @ https://github.com/i2bc/SURFMAP/releases/latest/download/surfmap-latest.tar.gz"`.
+
+Once you're done working with SURFMAP, type `deactivate` to exit the virtual environment (if you created one above).
 
 <details>
-<summary><h4>Option 2: from the version control systems</h4></summary>
-
-```bash
-# upgrade pip to its latest version
-python3 -m pip install --upgrade pip
-
-# install SURFMAP vx.x.x
-python -m pip install -e git+https://github.com/i2bc/SURFMAP.git@v2.1.0#egg=surfmap
-```
-</details>
-
-<details>
-<summary><h4>Option 3: from this project repository</h4></summary>
+<summary><h4>Alternative: install from source (for development, or to access/modify the code)</h4></summary>
 
 ```bash
 # clone SURFMAP on your machine
 git clone https://github.com/i2bc/SURFMAP.git
-
-# go in the SURFMAP/ directory
 cd SURFMAP
 
-# upgrade pip to its latest version
+# create and activate an isolated environment (optional but recommended)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# upgrade pip
 python3 -m pip install --upgrade pip
 
-# install SURFMAP
+# install SURFMAP in editable mode (Docker usage only)
 python3 -m pip install -e .
+
+# or, for local (non-Docker) execution as well
+python3 -m pip install -e ".[local]"
+```
+
+You can also let pip clone it for you, pinned to any git ref (branch or tag), instead of cloning manually above:
+```bash
+python3 -m pip install -e "git+https://github.com/i2bc/SURFMAP.git@master#egg=surfmap"
+# add [local] for local execution too; replace `master` with a specific tag (e.g. v2.2.1) from
+# https://github.com/i2bc/SURFMAP/releases to pin a released version instead of the latest development code
 ```
 </details>
 

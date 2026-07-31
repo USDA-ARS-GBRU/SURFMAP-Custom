@@ -19,13 +19,22 @@ def get_version():
     return match.group(1)
 
 
-install_requires = [
-    "freesasa==2.1.0; python_version < '3.12'",
-    "freesasa==2.2.1; python_version >= '3.12'",
-    "numpy>=1.21.6",
-    "pdb2pqr==3.1.0",
-    "requests==2.22.0"
-]
+# SURFMAP can either run its computation pipeline locally (requires R, APBS,
+# MSMS plus these Python packages) or dispatch to the pre-built Docker image
+# via `--docker` (only needs the `docker` CLI, no extra Python package).
+# Keep install_requires empty so `pip install surfmap` alone is enough to use
+# `--docker`, and use `pip install surfmap[local]` for local execution.
+install_requires = []
+
+extras_require = {
+    "local": [
+        "freesasa==2.1.0; python_version < '3.12'",
+        "freesasa==2.2.1; python_version >= '3.12'",
+        "numpy>=1.21.6",
+        "pdb2pqr==3.1.0",
+        "requests==2.22.0",
+    ],
+}
 
 packages = [
     'surfmap',
@@ -43,6 +52,7 @@ setuptools.setup(
     package_data={'surfmap': ['examples/*']},
     include_package_data=True,
     install_requires=install_requires,
+    extras_require=extras_require,
         entry_points={
             'console_scripts': [
                 'surfmap=surfmap.bin.surfmap:main',
