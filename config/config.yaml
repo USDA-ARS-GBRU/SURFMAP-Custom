@@ -1,0 +1,9 @@
+image_creation:
+  protein: "1g3n_A"
+  pdb_path: "surfmap/examples/1g3n_A.pdb"
+  microarray:
+    data_file:
+      file_path: "tests/mock_microarray.csv"
+  output_dir: "plots"
+  temp_dir: "plots/scratch"
+  trace_id: "trace_surfmap_hydra_20260330"
