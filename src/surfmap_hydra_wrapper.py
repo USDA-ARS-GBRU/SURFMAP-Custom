@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import pickle
 import sys
 import time
 from pathlib import Path
@@ -74,7 +75,6 @@ def emit_refusal(
 def check_forbidden_path(file_path: str, trace_id: str):
     """Ensures no write operation is directed toward data/ or unauthorized locations."""
     path = Path(file_path).resolve()
-    # Check if target path is inside data/
     for parent in [path] + list(path.parents):
         if parent.name == "data":
             emit_refusal(
@@ -121,17 +121,43 @@ def parse_and_validate_microarray(
     trace_id: str
 ) -> Dict[Tuple[str, str], float]:
     """
-    Reads and filters microarray CSV data for target_protein, parses peptide_number and chip_number,
-    extracts f_normexp for IgE and IgG4, validates shape consistency, applies 15-mer convolution smoothing,
-    and returns a dictionary mapping (chain, resnum) to the smoothed IgE/IgG4 ratio.
+    Reads microarray CSV or pickled dictionary for target_protein, validates shape consistency,
+    applies smoothing if raw, and returns a dictionary mapping (chain, resnum) to IgE/IgG4 ratio.
     """
     if not os.path.exists(csv_path):
         emit_refusal(
             reason_code="INPUT_MISSING",
-            trigger=f"Microarray CSV dataset missing at path: {csv_path}",
+            trigger=f"Microarray dataset missing at path: {csv_path}",
             trace_id=trace_id,
             handoff_payload={"csv_path": csv_path}
         )
+
+    # If input is a smoothed pickle data dictionary
+    if csv_path.endswith(".pkl") or csv_path.endswith(".pickle"):
+        try:
+            with open(csv_path, "rb") as f:
+                pickle_data = pickle.load(f)
+            ratio_values = pickle_data["ratio_smoothed"]
+            seq_len = len(residue_list)
+            if len(ratio_values) != seq_len:
+                emit_refusal(
+                    reason_code="UNSAFE_EXECUTION",
+                    trigger=f"Pickle ratio array length mismatch: got {len(ratio_values)}, expected PDB sequence len={seq_len}",
+                    trace_id=trace_id,
+                    handoff_payload={"pickle_len": len(ratio_values), "seq_len": seq_len}
+                )
+            ratio_dict = {}
+            for idx, key in enumerate(residue_list):
+                ratio_dict[key] = float(ratio_values[idx])
+            return ratio_dict
+        except RefusalException:
+            raise
+        except Exception as e:
+            emit_refusal(
+                reason_code="INPUT_MISSING",
+                trigger=f"Failed to read pickled data dictionary at {csv_path}: {str(e)}",
+                trace_id=trace_id
+            )
 
     try:
         df = pd.read_csv(csv_path)
@@ -163,12 +189,11 @@ def parse_and_validate_microarray(
     # Validate numeric types
     df_filtered = df_filtered.copy()
     df_filtered["peptide_number"] = df_filtered["peptide_number"].astype(int)
-    df_filtered["chip_number"] = df_filtered["chip_number"].astype(str)
 
     # Separate IgE and IgG4
     ab_col = "antibody_type" if "antibody_type" in df_filtered.columns else "antibody"
     df_ige = df_filtered[df_filtered[ab_col] == "IgE"].sort_values("peptide_number")
-    df_igg4 = df_filtered[df_filtered[ab_col] == "IgG4"].sort_values("peptide_number")
+    df_igg4 = df_filtered[(df_filtered[ab_col] == "IgG4") | (df_filtered[ab_col] == "IgG")].sort_values("peptide_number")
 
     ige_values = df_ige["f_normexp"].values.astype(float)
     igg4_values = df_igg4["f_normexp"].values.astype(float)

@@ -1,0 +1,6 @@
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.8698823, "event": "pipeline_start", "protein": "ARA_H_2", "pdb_path": "surfmap/examples/ARA_H_2.pdb"}
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.8699296, "event": "microarray_ratio_computed", "residue_count": 293}
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.86994, "event": "sasa_computed", "residue_count": 293}
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.8699465, "event": "temp_pdbs_injected", "ratio_pdb": "plots/scratch/temp_ratio.pdb", "sasa_pdb": "plots/scratch/temp_sasa.pdb"}
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.8699539, "event": "surfmap_projections_completed", "red_map": "plots/red_channel/maps/temp_ratio_bfactor_map.png", "green_map": "plots/green_channel/maps/ARA_H_2_stickiness_map.png", "blue_map": "plots/blue_channel/maps/temp_sasa_bfactor_map.png"}
+{"trace_id": "trace_surfmap_hydra_20261026", "timestamp": 1793058815.8699617, "event": "rgb_merging_completed", "output_path": "plots/merged_multichannel_256x256.png"}

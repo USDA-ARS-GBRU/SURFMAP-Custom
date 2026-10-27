@@ -1,0 +1,21 @@
+name: image-creation
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - biopython
+  - hydra-core
+  - omegaconf
+  - opencv
+  - pytest
+  - r-base
+  - r-ggplot2
+  - r-reshape2
+  - r-gridextra
+  - r-optparse
+  - r-data.table
+  - r-mapproj

@@ -1,9 +1,9 @@
 image_creation:
-  protein: "1g3n_A"
-  pdb_path: "surfmap/examples/1g3n_A.pdb"
+  protein: "ARA_H_2"
+  pdb_path: "surfmap/examples/ARA_H_2.pdb"
   microarray:
     data_file:
-      file_path: "tests/mock_microarray.csv"
+      file_path: "plots/smoothed_data.pkl"
   output_dir: "plots"
   temp_dir: "plots/scratch"
-  trace_id: "trace_surfmap_hydra_20260330"
+  trace_id: "trace_surfmap_hydra_20261026"

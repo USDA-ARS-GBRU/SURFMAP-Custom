@@ -9,6 +9,10 @@ example/output**
 .env
 logs/
 plots/
-docs/agent_transcripts/
+outputs/
+test.csv
+italy_preprocessed.csv
+data/
+surfmap/examples/ARA_H_2.pdb
 .Rhistory
 **.egg-info
