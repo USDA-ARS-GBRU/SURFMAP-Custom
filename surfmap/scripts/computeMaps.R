@@ -1,19 +1,20 @@
 rm(list=ls())
 
-###################  LIBRARIES   ##########################
-# Package names
-packages <- c("optparse")
+# ###################  LIBRARIES   ##########################
+# # Package names
+# packages <- c("optparse", "png")
 
-# Install packages not yet installed
-installed_packages <- packages %in% rownames(installed.packages())
-if (any(installed_packages == FALSE)) {
-  install.packages(packages[!installed_packages])
-}
+# # Install packages not yet installed
+# installed_packages <- packages %in% rownames(installed.packages())
+# if (any(installed_packages == FALSE)) {
+#   install.packages(packages[!installed_packages])
+# }
 
 # Packages loading
-suppressMessages(invisible(lapply(packages, library, character.only = TRUE)))
+#suppressMessages(invisible(lapply(packages, library, character.only = TRUE)))
 
-# library(optparse)
+library(optparse)
+library(png)
 options(warn=-1)
 
 ###########################################################
@@ -28,6 +29,102 @@ one_file = TRUE
 
 
 ################## FUNCTIONS ##########################
+#' Normalize a numeric matrix to 8-bit grayscale values
+#'
+#' Converts a numeric matrix to integer pixel intensities in the range
+#' 0-255 for machine learning image generation. Valid finite values are
+#' clipped to the supplied range (`minval`, `maxval`) and linearly scaled
+#' to the full 8-bit grayscale range. Non-finite values (`NA`, `NaN`,
+#' `Inf`, `-Inf`) are assigned a neutral gray value of 128.
+#'
+#' To prevent divide-by-zero errors and unstable outputs, the function
+#' returns a uniform neutral gray image when no finite values are present
+#' or when `maxval <= minval`. This behavior is intended for computer
+#' vision workflows (e.g., DINOv3) where artificially saturated images
+#' could introduce unwanted bias.
+#'
+#' @param mat Numeric matrix containing surface property values.
+#' @param minval Numeric lower bound used for clipping and normalization.
+#' @param maxval Numeric upper bound used for clipping and normalization.
+#'
+#' @return An integer matrix of the same dimensions as `mat` with values
+#'   in the range 0-255. Invalid or background pixels are assigned a value
+#'   of 128.
+#'
+#' @details
+#' Normalization is performed as:
+#'
+#' \deqn{
+#' pixel = ((value - minval) / (maxval - minval)) * 255
+#' }
+#'
+#' Values outside the specified range are clipped prior to scaling.
+#'
+#' @examples
+#' mat <- matrix(c(-1, 0, 1, NA), nrow = 2)
+#' normalize_to_uint8(mat, minval = -1, maxval = 1)
+#'
+#' @seealso
+#' Useful for generating single-channel grayscale maps that can be merged
+#' into RGB tensors for deep learning workflows.
+normalize_to_uint8 <- function(mat, minval, maxval)
+{
+    mat2 <- mat
+    valid <- is.finite(mat2)
+
+    # No valid values at all
+    if (!any(valid)) {
+        return(
+            matrix(
+                128L,
+                nrow = nrow(mat),
+                ncol = ncol(mat)
+            )
+        )
+    }
+
+    # Prevent divide-by-zero and degenerate scaling
+    # For DINOv3, return a neutral gray image rather than
+    # an artificially saturated white image.
+    if (!is.finite(minval) ||
+        !is.finite(maxval) ||
+        maxval <= minval) {
+
+        return(
+            matrix(
+                128L,
+                nrow = nrow(mat),
+                ncol = ncol(mat)
+            )
+        )
+    }
+
+    # Clamp values to the requested range
+    mat2[valid & mat2 < minval] <- minval
+    mat2[valid & mat2 > maxval] <- maxval
+
+    # Normalize valid pixels to [0,255]
+    mat2[valid] <- (
+        (mat2[valid] - minval) /
+        (maxval - minval)
+    ) * 255
+
+    # Round and enforce bounds
+    mat2[valid] <- pmin(
+        255,
+        pmax(
+            0,
+            round(mat2[valid])
+        )
+    )
+
+    # Use neutral gray for background / invalid pixels
+    mat2[!valid] <- 128
+
+    storage.mode(mat2) <- "integer"
+
+    return(mat2)
+}
 
 # This function is a better version of the function image(). It permits to give color to cell that have NA, NaN and 
 # values which are outside the color scale. Here the color white if attributed to all the cell with a value of 100, 
@@ -147,13 +244,22 @@ option_list = list(
   make_option(c("--bfactor_min_value"), type="numeric", default=NULL, 
               help="Minimum bfactor value to be used for the bfactor color scale", metavar="character"),
   make_option(c("--bfactor_max_value"), type="numeric", default=NULL, 
-              help="Maximum bfactor value to be used for the bfactor color scale", metavar="character")
+              help="Maximum bfactor value to be used for the bfactor color scale", metavar="character"),
+  make_option(c("--image_width"), type="integer", default=256,
+              help="Output image width in pixels [default=%default]"),
+  make_option(c("--image_height"), type="integer", default=256,
+              help="Output image height in pixels [default=%default]"),
+  make_option(c("--grayscale_output"), default=FALSE, action="store_true",
+              help="Generate normalized grayscale output.")
 );
 
+use_grayscale_output <- FALSE
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 pdb_id = opt$pdb
 projection = opt$projection
+img_height = opt$image_height
+img_width = opt$image_width
 
 if (file_test("-f", opt$input)) {
   files = c(opt$input)
@@ -207,7 +313,14 @@ for (file in (1:length(files))) {
   pdf_filename = file.path(outdir, paste0(name_prefix, "_map.pdf"))
 
   if (opt$png == TRUE) {
-    png(gsub(".pdf", ".png", pdf_filename), res = 300, width = 17.78, height = 17.78, units = "cm")
+    #png(gsub(".pdf", ".png", pdf_filename), res = 300, width = 17.78, height = 17.78, units = "cm")
+    png(
+      filename = gsub(".pdf", ".png", pdf_filename),
+      width = img_width,
+      height = img_height,
+      units = "px",
+      bg = "#808080"
+    )
   } else {
     pdf(pdf_filename)
   }
@@ -253,8 +366,8 @@ for (file in (1:length(files))) {
 
   # The min value of the matrix correspond to the lowest energy value. Used for the scale
   # in the plot, which correspond to (0,-minE).
-  proj=which(val_matrix!=Inf)
-
+  #proj=which(val_matrix!=Inf)
+  proj <- is.finite(val_matrix)
   if (opt$electrostatics == TRUE) { # electrostatics scale
     main_scale = "electrostatic potential distribution scale"
 
@@ -337,8 +450,12 @@ for (file in (1:length(files))) {
   } else if (opt$bfactor == TRUE) { # b-factor scale
     
     # Initialize minval and maxval with default values
-    minval <- min(val_matrix[proj])
-    maxval <- max(val_matrix[proj])
+    finite_vals <- val_matrix[is.finite(val_matrix)]
+
+    minval <- min(finite_vals)
+    maxval <- max(finite_vals)
+    # minval <- min(val_matrix[proj])
+    # maxval <- max(val_matrix[proj])
 
     # Override the default minval if a specific minimum value is provided
     if (!is.null(opt$bfactor_min_value)) {
@@ -404,8 +521,14 @@ for (file in (1:length(files))) {
   }
 
   # Creation of the map.
-  layout(matrix(c(1,2), nrow=1, ncol=2), widths=c(4,1,1), heights=c(4,1))
-  par(mar=c(14.4,5,9.3,1.2))
+  # layout(matrix(c(1,2), nrow=1, ncol=2), widths=c(4,1,1), heights=c(4,1))
+  # par(mar=c(14.4,5,9.3,1.2))
+  par(
+    mar = c(0,0,0,0),
+    xaxs = "i",
+    yaxs = "i",
+    bg = "#808080"
+  )
   
   # compute values for scale axis
   range=maxval-minval
@@ -430,20 +553,62 @@ for (file in (1:length(files))) {
   }
   
   # Creation of the image.
-  image.nan.better(t(val_matrix),col=colorScale,
-                   zlim=c(minval, maxval),
-                   outside.below.color='white',
-                   outside.above.color='gray90',
-                   na.color='white',
-                   frame.plot = TRUE,
-                   axes = FALSE,
-                   xlab = labx, 
-                   ylab = laby,
-                   cex.lab = 1.5)
-  axis(1, at=c(0,0.25,0.5,0.75,1), labels=c(-180,-90,0,90,180), cex.axis=1.2)
-  axis(2, at=c(0,0.25,0.5,0.75,1), labels=c(-90,-45,0,45,90), cex.axis=1.2, las=2)
-  title(main = main_title, line = 1.5)
+  # image.nan.better(t(val_matrix),col=colorScale,
+  #                  zlim=c(minval, maxval),
+  #                  outside.below.color='white',
+  #                  outside.above.color='gray90',
+  #                  na.color='white',
+  #                  frame.plot = TRUE,
+  #                  axes = FALSE,
+  #                  xlab = labx, 
+  #                  ylab = laby,
+  #                  cex.lab = 1.5)
+  # axis(1, at=c(0,0.25,0.5,0.75,1), labels=c(-180,-90,0,90,180), cex.axis=1.2)
+  # axis(2, at=c(0,0.25,0.5,0.75,1), labels=c(-90,-45,0,45,90), cex.axis=1.2, las=2)
+  #title(main = main_title, line = 1.5)
+  plot.new()
+
+  par(
+  mar=c(0,0,0,0),
+  oma=c(0,0,0,0),
+  xaxs="i",
+  yaxs="i"
+)
+
+if (use_grayscale_output) {
+
+    gray_matrix <- normalize_to_uint8(
+        t(val_matrix),
+        minval,
+        maxval
+    )
+
+    writePNG(
+        gray_matrix / 255,
+        target=gsub(".pdf", ".png", pdf_filename)
+    )
+
+    next
+}
+else
+{
+    image.nan.better(
+    t(val_matrix),
+    col=colorScale,
+    zlim=c(minval,maxval),
+    outside.below.color="#808080",
+    outside.above.color="#808080",
+    na.color="#808080",
+    frame.plot=FALSE,
+    axes=FALSE,
+    xlab="",
+    ylab=""
+)
   
+}
+
+
+
   # Add native site to plot.
   if (!is.na(opt$coord)) {
     points(nat_phi/360, nat_theta/180, pch = 8, col = "black", cex = 2, lwd = 2)
@@ -455,10 +620,10 @@ for (file in (1:length(files))) {
     points(res_phi/360, res_theta/180, pch = 4, col = rgb(red = 0, green = 0, blue = 0, alpha = 0.75), cex = 1.15, lwd = 1.)
     text(res_phi/360, res_theta/180+14/180, labels = legend, cex = 0.7, lwd = 1.5, col = rgb(red = 0, green = 0, blue = 0, alpha = 0.75))
   }
-  # Add scale to plot. 
-  par(mar=c(15.5,1.6,10.5,4.5))
-  image.scale(t(val_matrix), col=colorScale, breaks=colors, scalename = scale_main, horiz=FALSE, yaxt="n")#, ylim = c(0, 1))
-  axis(4,at=scale_at, las=2, cex.axis=0.8, labels=round(axis_scale,digits = 2))
+  # # Add scale to plot. 
+  # par(mar=c(15.5,1.6,10.5,4.5))
+  # image.scale(t(val_matrix), col=colorScale, breaks=colors, scalename = scale_main, horiz=FALSE, yaxt="n")#, ylim = c(0, 1))
+  # axis(4,at=scale_at, las=2, cex.axis=0.8, labels=round(axis_scale,digits = 2))
 
   dev.off()
 }
